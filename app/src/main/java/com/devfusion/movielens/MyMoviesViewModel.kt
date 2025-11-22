@@ -3,32 +3,58 @@ package com.devfusion.movielens
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 
+/**
+ * ViewModel for MyMovies screen.
+ * Keeps lists of "to be watched" and "watched" as SnapshotStateList so Composables update automatically.
+ */
 class MyMoviesViewModel : ViewModel() {
-    // Two lists: toBeWatched and watched. Using MutableStateList so Compose observes changes.
-    val toBeWatched = mutableStateListOf<Movie>()
-    val watched = mutableStateListOf<Movie>()
 
-    // Add a movie to "to be watched"
+    // use mutableStateListOf so the UI observes changes (do NOT wrap these in rememberSaveable)
+    private val _toBeWatched = mutableStateListOf<Movie>()
+    val toBeWatched: List<Movie> get() = _toBeWatched
+
+    private val _watched = mutableStateListOf<Movie>()
+    val watched: List<Movie> get() = _watched
+
+    /** Add to 'to be watched' */
     fun addToBeWatched(movie: Movie) {
-        toBeWatched += movie
-    }
-
-    // Move from toBeWatched -> watched
-    fun markAsWatched(movie: Movie) {
-        if (toBeWatched.remove(movie)) {
-            watched += movie
-        } else if (!watched.contains(movie)) {
-            // added directly if not present
-            watched += movie
+        // prevent duplicates by id
+        if (_toBeWatched.none { it.id == movie.id } && _watched.none { it.id == movie.id }) {
+            _toBeWatched.add(movie)
         }
     }
 
-    // Add directly to watched (user manual input)
+    /** Add directly to 'watched' */
     fun addWatched(movie: Movie) {
-        if (!watched.any { it.id == movie.id }) watched += movie
+        if (_watched.none { it.id == movie.id }) {
+            _watched.add(movie)
+            // if it was in to-be-watched, remove it
+            _toBeWatched.removeAll { it.id == movie.id }
+        }
     }
 
-    // Remove helpers if needed
-    fun removeFromToBeWatched(movie: Movie) { toBeWatched.remove(movie) }
-    fun removeFromWatched(movie: Movie) { watched.remove(movie) }
+    /** Mark a to-be-watched item as watched */
+    fun markAsWatched(movie: Movie) {
+        // remove from toBeWatched, then add to watched
+        _toBeWatched.removeAll { it.id == movie.id }
+        if (_watched.none { it.id == movie.id }) {
+            _watched.add(movie)
+        }
+    }
+
+    /** Remove from to-be-watched */
+    fun removeFromToBeWatched(movie: Movie) {
+        _toBeWatched.removeAll { it.id == movie.id }
+    }
+
+    /** Remove from watched */
+    fun removeFromWatched(movie: Movie) {
+        _watched.removeAll { it.id == movie.id }
+    }
+
+    /** Optional helper to clear all (for debug) */
+    fun clearAll() {
+        _toBeWatched.clear()
+        _watched.clear()
+    }
 }
