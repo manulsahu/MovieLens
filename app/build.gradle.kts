@@ -25,6 +25,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        buildConfigField("String", "TMDB_API_KEY", "\"YOUR_TMDB_API_KEY_HERE\"")
     }
 
     buildTypes {
@@ -47,6 +48,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 
@@ -88,7 +90,16 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.7.2")
     // add this (version should match your lifecycle libs; 2.6.1 works)
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
+    implementation("io.coil-kt:coil-compose:2.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
 
+    // Networking & JSON
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+
+    // Coroutines (for ViewModel)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // XML / AppCompat (for your Activities)
     implementation(libs.androidx.appcompat)
