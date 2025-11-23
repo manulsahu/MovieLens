@@ -2,127 +2,59 @@ package com.devfusion.movielens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.compose.runtime.mutableStateListOf
-import com.devfusion.movielens.auth.AuthManager
-import com.devfusion.movielens.repository.UserMoviesRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
+import com.google.firebase.auth.FirebaseAuth
 
-@HiltViewModel
-class MyMoviesViewModel @Inject constructor(
-    private val repository: UserMoviesRepository,
-    private val authManager: AuthManager
-) : ViewModel() {
+class MyMoviesViewModel : ViewModel() {
 
-    private val _toBeWatched = mutableStateListOf<Movie>()
-    val toBeWatched: List<Movie> get() = _toBeWatched
+    private val auth = FirebaseAuth.getInstance()
+    private val userMoviesRepository = UserMoviesRepository()
 
-    private val _watched = mutableStateListOf<Movie>()
-    val watched: List<Movie> get() = _watched
+    private val _watchedMovies = MutableStateFlow<List<UserMovie>>(emptyList())
+    val watchedMovies: StateFlow<List<UserMovie>> = _watchedMovies
 
-    private var toBeWatchedJob: Job? = null
-    private var watchedJob: Job? = null
+    private val _watchlistMovies = MutableStateFlow<List<UserMovie>>(emptyList())
+    val watchlistMovies: StateFlow<List<UserMovie>> = _watchlistMovies
 
-    init {
-        loadUserMovies()
-    }
-
-    private fun loadUserMovies() {
-        val currentUserId = authManager.getCurrentUserId()
-        if (currentUserId.isEmpty()) {
-            _toBeWatched.clear()
-            _watched.clear()
-            return
-        }
-
-        // Cancel previous jobs
-        toBeWatchedJob?.cancel()
-        watchedJob?.cancel()
-
-        // Load to-be-watched movies
-        toBeWatchedJob = repository.getToBeWatchedMovies(currentUserId)
-            .onEach { userMovies ->
-                _toBeWatched.clear()
-                _toBeWatched.addAll(userMovies.map { it.toMovie() })
-            }
-            .launchIn(viewModelScope)
-
-        // Load watched movies
-        watchedJob = repository.getWatchedMovies(currentUserId)
-            .onEach { userMovies ->
-                _watched.clear()
-                _watched.addAll(userMovies.map { it.toMovie() })
-            }
-            .launchIn(viewModelScope)
-    }
-
-    fun addToBeWatched(movie: Movie) {
+    fun loadUserMovies() {
         viewModelScope.launch {
-            val userId = authManager.getCurrentUserId()
-            if (userId.isNotEmpty()) {
-                repository.addToBeWatched(userId, movie)
-            }
+            val userId = auth.currentUser?.uid ?: return@launch
+            _watchedMovies.value = userMoviesRepository.getWatchedMovies(userId)
+            _watchlistMovies.value = userMoviesRepository.getWatchlistMovies(userId)
         }
     }
 
-    fun addWatched(movie: Movie) {
-        viewModelScope.launch {
-            val userId = authManager.getCurrentUserId()
-            if (userId.isNotEmpty()) {
-                repository.addToWatched(userId, movie)
-            }
-        }
+    suspend fun addToWatched(movie: Movie) {
+        val userId = auth.currentUser?.uid ?: return
+        userMoviesRepository.addToWatched(userId, movie)
+        loadUserMovies() // Refresh the list
     }
 
-    fun markAsWatched(movie: Movie) {
-        viewModelScope.launch {
-            val userId = authManager.getCurrentUserId()
-            if (userId.isNotEmpty()) {
-                repository.markAsWatched(userId, movie)
-            }
-        }
+    suspend fun addToWatchlist(movie: Movie) {
+        val userId = auth.currentUser?.uid ?: return
+        userMoviesRepository.addToWatchlist(userId, movie)
+        loadUserMovies() // Refresh the list
     }
 
-    fun removeFromToBeWatched(movie: Movie) {
-        viewModelScope.launch {
-            val userId = authManager.getCurrentUserId()
-            if (userId.isNotEmpty()) {
-                repository.removeFromToBeWatched(userId, movie)
-            }
-        }
+    suspend fun markAsWatched(userMovie: UserMovie) {
+        val userId = auth.currentUser?.uid ?: return
+        userMoviesRepository.markAsWatched(userId, userMovie.movieId)
+        loadUserMovies() // Refresh the list
     }
 
-    fun removeFromWatched(movie: Movie) {
-        viewModelScope.launch {
-            val userId = authManager.getCurrentUserId()
-            if (userId.isNotEmpty()) {
-                repository.removeFromWatched(userId, movie)
-            }
-        }
+    suspend fun removeFromWatchlist(movieId: Int) {
+        val userId = auth.currentUser?.uid ?: return
+        userMoviesRepository.removeFromWatchlist(userId, movieId)
+        loadUserMovies() // Refresh the list
     }
 
-    fun refreshMovies() {
-        loadUserMovies()
+    suspend fun removeFromWatched(movieId: Int) {
+        val userId = auth.currentUser?.uid ?: return
+        // For watched movies, we can delete them entirely or move to watchlist
+        // Currently deleting them
+        userMoviesRepository.removeFromWatchlist(userId, movieId) // Same method works for both
+        loadUserMovies() // Refresh the list
     }
-
-    fun clearAll() {
-        _toBeWatched.clear()
-        _watched.clear()
-    }
-}
-
-// Extension function to convert UserMovie to Movie
-fun UserMovie.toMovie(): Movie {
-    return Movie(
-        id = this.movieId,
-        title = this.title,
-        posterPath = this.posterPath,
-        overview = this.overview,
-        releaseDate = this.releaseDate,
-        voteAverage = this.voteAverage
-    )
 }

@@ -2,12 +2,8 @@ package com.devfusion.movielens.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.room.Room
-import com.devfusion.movielens.auth.AuthManager
-import com.devfusion.movielens.data.AppDatabase
-import com.devfusion.movielens.data.UserMoviesDao
-import com.devfusion.movielens.repository.UserMoviesRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,19 +17,8 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
-        return AppDatabase.getInstance(context)
-    }
-
-    @Provides
-    fun provideUserMoviesDao(database: AppDatabase): UserMoviesDao {
-        return database.userMoviesDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideUserMoviesRepository(userMoviesDao: UserMoviesDao): UserMoviesRepository {
-        return UserMoviesRepository(userMoviesDao)
+    fun provideContext(@ApplicationContext context: Context): Context {
+        return context
     }
 
     @Provides
@@ -50,11 +35,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAuthManager(
-        @ApplicationContext context: Context,
-        sharedPreferences: SharedPreferences,
-        firebaseAuth: FirebaseAuth
-    ): AuthManager {
-        return AuthManager(context, sharedPreferences, firebaseAuth)
+    fun provideFirebaseFirestore(): FirebaseFirestore {
+        return FirebaseFirestore.getInstance()
     }
 }

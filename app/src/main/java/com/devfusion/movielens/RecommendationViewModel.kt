@@ -2,53 +2,206 @@ package com.devfusion.movielens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+import dagger.hilt.android.lifecycle.HiltViewModel
 
-data class HomeUiState(
-    val userName: String = "User",
-    val watchHistory: List<Movie> = emptyList(),
-    val recommendations: List<Movie> = emptyList()
-)
-
-class RecommendationViewModel : ViewModel() {
+@HiltViewModel
+class RecommendationViewModel @Inject constructor(
+    private val auth: FirebaseAuth,
+    private val db: FirebaseFirestore
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState
 
+    private val movieRepository = MovieRepository()
+
     init {
-        loadData()
+        loadRecommendations()
     }
 
-    private fun loadData() {
+    private fun loadRecommendations() {
         viewModelScope.launch {
-            delay(300)
+            val userId = auth.currentUser?.uid ?: return@launch
 
-            val recommendations = listOf(
-                Movie(1, "Interstellar", "/bR4U9n9ENjYAbCqBgxOQH3mOx4n.jpg", releaseDate = "2014", voteAverage = 8.3),
-                Movie(2, "The Martian", "/5aGhaIHYuQbqlHWvWYqMCnj40y2.jpg", releaseDate = "2015", voteAverage = 7.7),
-                Movie(3, "Inception", "/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg", releaseDate = "2010", voteAverage = 8.4)
-            )
+            try {
+                // Step 1: Get user's watched movies from MyMovies tab
+                val userWatchedMovies = getUserWatchedMovies(userId)
 
-            val watchHistory = listOf(
-                Movie(4, "John Wick", "/fZPSd91yGE9fCcCe6OoQr6E3Bev.jpg", releaseDate = "2014", voteAverage = 7.4),
-                Movie(5, "La La Land", "/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg", releaseDate = "2016", voteAverage = 8.0),
-                Movie(6, "Arrival", "/hLudzvGfpi6JlwUnsNhXwKKg4j.jpg", releaseDate = "2016", voteAverage = 7.9)
-            )
+                // Step 2: Get user's watchlist from MyMovies tab
+                val userWatchlist = getUserWatchlist(userId)
 
-            _uiState.value = HomeUiState(
-                userName = getCurrentUserName(),
-                watchHistory = watchHistory,
-                recommendations = recommendations
-            )
+                // Step 3: Get new releases (always show these)
+                val newReleases = movieRepository.getNewReleases()
+
+                // Step 4: Generate personalized recommendations
+                val personalizedRecommendations = if (userWatchedMovies.isNotEmpty() || userWatchlist.isNotEmpty()) {
+                    generateRecommendationsFromUserMovies(userWatchedMovies + userWatchlist)
+                } else {
+                    // If no user data, show popular movies
+                    movieRepository.getPopularMovies()
+                }
+
+                // Step 5: Get upcoming movies
+                val upcomingMovies = movieRepository.getUpcomingMovies()
+
+                _uiState.value = HomeUiState(
+                    userName = getCurrentUserName(),
+                    watchHistory = userWatchedMovies.take(6),
+                    recommendations = personalizedRecommendations,
+                    newReleases = newReleases,
+                    upcomingMovies = upcomingMovies
+                )
+            } catch (e: Exception) {
+                // Fallback if anything fails
+                val popularMovies = movieRepository.getPopularMovies()
+                val newReleases = movieRepository.getNewReleases()
+
+                _uiState.value = HomeUiState(
+                    userName = getCurrentUserName(),
+                    watchHistory = emptyList(),
+                    recommendations = popularMovies,
+                    newReleases = newReleases,
+                    upcomingMovies = emptyList()
+                )
+            }
         }
     }
 
+    private suspend fun getUserWatchedMovies(userId: String): List<Movie> {
+        return try {
+            db.collection("user_movies")
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("watched", true)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(UserMovie::class.java) }
+                .map { it.toMovie() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun getUserWatchlist(userId: String): List<Movie> {
+        return try {
+            db.collection("user_movies")
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("watchlist", true)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(UserMovie::class.java) }
+                .map { it.toMovie() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun generateRecommendationsFromUserMovies(userMovies: List<Movie>): List<Movie> {
+        if (userMovies.isEmpty()) return emptyList()
+
+        // Analyze user preferences
+        val userPreferences = analyzeUserPreferences(userMovies)
+
+        // Get similar movies from TMDB based on user preferences
+        return movieRepository.getSimilarMovies(userPreferences)
+    }
+
+    private fun analyzeUserPreferences(userMovies: List<Movie>): UserPreferences {
+        // Extract favorite genres from user's movies
+        val favoriteGenres = userMovies
+            .flatMap { it.genres ?: emptyList() }
+            .groupBy { it }
+            .mapValues { it.value.size }
+            .entries
+            .sortedByDescending { it.value }
+            .take(3)
+            .map { it.key }
+
+        // Calculate average preferred rating
+        val averageRating = if (userMovies.isNotEmpty()) {
+            userMovies.mapNotNull { it.voteAverage }.average()
+        } else {
+            7.0 // Default average rating
+        }
+
+        // Calculate preferred years
+        val years = userMovies.mapNotNull { it.releaseDate?.take(4)?.toIntOrNull() }
+        val preferredYears = if (years.isNotEmpty()) {
+            val avgYear = years.average().toInt()
+            (avgYear - 5)..(avgYear + 5)
+        } else {
+            2000..2024
+        }
+
+        return UserPreferences(
+            favoriteGenres = favoriteGenres,
+            preferredRatingRange = (averageRating - 1.0)..(averageRating + 1.0),
+            preferredYears = preferredYears
+        )
+    }
+
+    fun addToWatchHistory(movie: Movie) {
+        viewModelScope.launch {
+            val userId = auth.currentUser?.uid ?: return@launch
+
+            val userMovie = UserMovie(
+                userId = userId,
+                movieId = movie.id,
+                title = movie.title,
+                posterPath = movie.posterPath,
+                releaseDate = movie.releaseDate,
+                voteAverage = movie.voteAverage,
+                genres = movie.genres,
+                watched = true,
+                watchlist = false
+            )
+
+            db.collection("user_movies")
+                .add(userMovie)
+                .addOnSuccessListener {
+                    loadRecommendations() // Refresh recommendations
+                }
+        }
+    }
+
+    fun addToWatchlist(movie: Movie) {
+        viewModelScope.launch {
+            val userId = auth.currentUser?.uid ?: return@launch
+
+            val userMovie = UserMovie(
+                userId = userId,
+                movieId = movie.id,
+                title = movie.title,
+                posterPath = movie.posterPath,
+                releaseDate = movie.releaseDate,
+                voteAverage = movie.voteAverage,
+                genres = movie.genres,
+                watched = false,
+                watchlist = true
+            )
+
+            db.collection("user_movies")
+                .add(userMovie)
+                .addOnSuccessListener {
+                    loadRecommendations() // Refresh recommendations
+                }
+        }
+    }
+
+    fun refreshRecommendations() {
+        loadRecommendations()
+    }
+
     private fun getCurrentUserName(): String {
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = auth.currentUser
         return user?.displayName ?: (user?.email?.substringBefore('@') ?: "Movie Lover")
     }
 }
