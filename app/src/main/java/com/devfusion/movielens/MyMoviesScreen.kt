@@ -1,6 +1,5 @@
 package com.devfusion.movielens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +56,11 @@ fun MyMoviesScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(movie.title)
-                                Text("${movie.platform ?: ""} • ${movie.genre ?: ""}", style = MaterialTheme.typography.bodySmall)
+                                // Updated to use releaseDate and voteAverage instead of platform/genre
+                                Text(
+                                    "${movie.releaseDate?.take(4) ?: "Unknown"} • ⭐ ${movie.voteAverage ?: "N/A"}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
 
                             // Mark as watched button
@@ -98,7 +100,11 @@ fun MyMoviesScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(movie.title)
-                                Text("${movie.platform ?: ""} • ${movie.genre ?: ""}", style = MaterialTheme.typography.bodySmall)
+                                // Updated to use releaseDate and voteAverage instead of platform/genre
+                                Text(
+                                    "${movie.releaseDate?.take(4) ?: "Unknown"} • ⭐ ${movie.voteAverage ?: "N/A"}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
 
                             // optional remove button for watched
@@ -113,20 +119,64 @@ fun MyMoviesScreen(
     }
 
     if (showAddDialog) {
-        AddMovieDialog(
-            onDismiss = { showAddDialog = false },
-            onSave = { title, category, selectedGenres, addToWatched ->
-                val id = UUID.randomUUID().toString()
-                val movie = Movie(
-                    id = id,
-                    title = title,
-                    genre = selectedGenres.joinToString(", "),
-                    platform = category,
-                    posterUrl = null,
-                    releaseYear = null
-                )
-                if (addToWatched) viewModel.addWatched(movie) else viewModel.addToBeWatched(movie)
-                showAddDialog = false
+        // Simple text input dialog for adding movies manually
+        var movieTitle by remember { mutableStateOf("") }
+        var addToWatched by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add Movie") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = movieTitle,
+                        onValueChange = { movieTitle = it },
+                        label = { Text("Movie Title") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Add as watched?")
+                        Switch(
+                            checked = addToWatched,
+                            onCheckedChange = { addToWatched = it }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (movieTitle.isNotBlank()) {
+                            val movie = Movie(
+                                id = System.currentTimeMillis().toInt(), // Use timestamp as ID for manual entries
+                                title = movieTitle,
+                                posterPath = null,
+                                overview = null,
+                                releaseDate = null,
+                                voteAverage = null
+                            )
+                            if (addToWatched) {
+                                viewModel.addWatched(movie)
+                            } else {
+                                viewModel.addToBeWatched(movie)
+                            }
+                            showAddDialog = false
+                        }
+                    },
+                    enabled = movieTitle.isNotBlank()
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }

@@ -12,7 +12,11 @@ import androidx.compose.ui.unit.dp
 
 private const val TAG = "ML-DEBUG"
 
-sealed class BottomTab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+sealed class BottomTab(
+    val route: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
     object Home : BottomTab("home", "Home", Icons.Default.Home)
     object Trending : BottomTab("trending", "Trending", Icons.Default.TrendingUp)
     object MyMovies : BottomTab("mymovies", "MyMovies", Icons.Default.List)
@@ -32,7 +36,6 @@ sealed class BottomTab(val route: String, val label: String, val icon: androidx.
             }
         }
 
-        // Immutable list (do not mutate this anywhere)
         val allTabs: List<BottomTab> = listOf(Home, Trending, MyMovies, Profile)
     }
 }
@@ -40,30 +43,21 @@ sealed class BottomTab(val route: String, val label: String, val icon: androidx.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MovieLensApp() {
-    // Persist a simple String route (Bundle-safe)
-    var currentRoute by rememberSaveable { mutableStateOf(BottomTab.Home.route) }
+    var selectedTabIndex by rememberSaveable { mutableStateOf(0) }
 
-    // Derive the current tab using fromRoute (always returns a non-null tab)
-    val currentTab = remember(currentRoute) { BottomTab.fromRoute(currentRoute) }
+    // compute directly (no remember) or use derivedStateOf if heavy
+    val currentTab = BottomTab.allTabs.getOrNull(selectedTabIndex) ?: BottomTab.Home
 
     Scaffold(
         bottomBar = {
             NavigationBar {
-                // Defensive iteration: use index-based loop and getOrNull
-                val tabs = BottomTab.allTabs
-                for (i in tabs.indices) {
-                    val tab = tabs.getOrNull(i) ?: run {
-                        Log.w(TAG, "BottomTab.allTabs[$i] was null — falling back to Home")
-                        BottomTab.Home
-                    }
-
-                    val selected = tab.route == currentRoute
-
+                BottomTab.allTabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
-                        selected = selected,
+                        selected = selectedTabIndex == index,
                         onClick = {
-                            if (currentRoute != tab.route) {
-                                currentRoute = tab.route
+                            if (selectedTabIndex != index) {
+                                selectedTabIndex = index
+                                Log.d(TAG, "selectedTabIndex -> $selectedTabIndex (${BottomTab.allTabs[selectedTabIndex].route})")
                             }
                         },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
@@ -73,14 +67,21 @@ fun MovieLensApp() {
             }
         }
     ) { innerPadding ->
-        val modifier = Modifier.padding(innerPadding).fillMaxSize()
+        val modifier = Modifier
+            .padding(innerPadding)
+            .fillMaxSize()
 
-        // Use when over a non-null currentTab
+        // Option A: remove key entirely (Compose will handle recomposition fine here)
         when (currentTab) {
-            BottomTab.Home -> HomeScreen(modifier = modifier)
-            BottomTab.Trending -> TrendingScreen(modifier = modifier)
-            BottomTab.MyMovies -> MyMoviesScreen(modifier = modifier)
-            BottomTab.Profile -> ProfileScreen(modifier = modifier)
+            is BottomTab.Home -> HomeScreen(modifier = modifier)
+            is BottomTab.Trending -> TrendingScreen(modifier = modifier)
+            is BottomTab.MyMovies -> MyMoviesScreen(modifier = modifier)
+            is BottomTab.Profile -> ProfileScreen(modifier = modifier)
         }
+
+        // Option B (if you prefer an explicit key): use the numeric index as the key
+        // key(selectedTabIndex) {
+        //     when (currentTab) { ... }
+        // }
     }
 }

@@ -74,10 +74,10 @@ fun TrendingRow(movie: Movie) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Simple poster image with Coil
-            if (!movie.posterUrl.isNullOrBlank()) {
+            // Simple poster image with Coil - using posterPath instead of posterUrl
+            if (!movie.posterPath.isNullOrBlank()) {
                 AsyncImage(
-                    model = movie.posterUrl,
+                    model = "https://image.tmdb.org/t/p/w500${movie.posterPath}",
                     contentDescription = "${movie.title} poster",
                     modifier = Modifier
                         .size(width = 64.dp, height = 88.dp)
@@ -115,23 +115,45 @@ fun TrendingRow(movie: Movie) {
                     maxLines = 2
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                val year = movie.releaseYear ?: ""
-                val genre = movie.genre ?: ""
+
+                // Updated to use releaseDate and voteAverage instead of releaseYear and genre
+                val year = movie.releaseDate?.take(4) ?: ""
+                val rating = movie.voteAverage?.let { "⭐ ${String.format("%.1f", it)}" } ?: ""
                 Text(
                     text = listOfNotNull(
                         year.takeIf { it.isNotBlank() },
-                        genre.takeIf { it.isNotBlank() }
+                        rating.takeIf { it.isNotBlank() }
                     ).joinToString(" • "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    movie.platform ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+
+                // Show overview snippet if available
+                movie.overview?.let { overview ->
+                    Text(
+                        text = overview.take(60) + if (overview.length > 60) "..." else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
+}
+
+// Add this annotation to suppress the experimental API warning
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit
+) {
+    androidx.compose.material3.FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = label
+    )
 }
