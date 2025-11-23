@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".MovieLensApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -12,49 +13,33 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MovieLens">
         <activity
-            android:name=".AddMovieDialog"
+            android:name=".RecommendationUiState"
             android:exported="false" />
-        <activity
-            android:name=".Movie.kt"
+        <!-- REMOVE THIS INVALID ACTIVITY DECLARATION -->
+        <!--
+ <activity
+            android:name=".ProfileViewModel"
             android:exported="false" />
-        <activity
-            android:name=".TmdbService"
-            android:exported="false" />
-        <activity
-            android:name=".MyMoviesViewModel"
-            android:exported="false" />
-        <activity
-            android:name=".Models"
-            android:exported="false" />
-        <activity
-            android:name=".TrendingViewModel"
-            android:exported="false" />
-        <activity
-            android:name=".RecommendationViewModel"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileScreen"
-            android:exported="false" />
-        <activity
-            android:name=".MyMoviesScreen"
-            android:exported="false" />
-        <activity
-            android:name=".TrendingScreen"
-            android:exported="false" />
-        <activity
-            android:name=".HomeScreen"
-            android:exported="false" /> <!-- Launch app at SignInActivity so unauthenticated users see auth first -->
+        -->
+        <!-- Launch app at SignInActivity so unauthenticated users see auth first -->
         <activity
             android:name=".SignInActivity"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.MovieLens">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".SignUpActivity" />
-        <activity android:name=".MainActivity" />
+        <activity
+            android:name=".SignUpActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MovieLens" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MovieLens" />
     </application>
 
 </manifest>
