@@ -9,7 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
-// DTOs only for the fields we need
+// DTOs for TMDB API responses
 data class TmdbPagedResponse(
     val page: Int,
     val results: List<TmdbMovieItem>
@@ -21,11 +21,13 @@ data class TmdbMovieItem(
     val name: String?, // for TV (not used heavily here)
     val poster_path: String?,
     val release_date: String?,
-    val genre_ids: List<Int>?
+    val genre_ids: List<Int>?,
+    val vote_average: Double? // Added this for recommendations
 )
 
+// Extended service interface for recommendations
 interface TmdbService {
-    // we'll call discover endpoint with provider filtering for streaming platforms
+    // For streaming platforms (your existing)
     @GET("discover/movie")
     suspend fun discoverMovies(
         @Query("api_key") apiKey: String,
@@ -35,8 +37,30 @@ interface TmdbService {
         @Query("page") page: Int = 1
     ): Response<TmdbPagedResponse>
 
+    // For recommendations (new)
+    @GET("discover/movie")
+    suspend fun discoverMoviesByGenre(
+        @Query("api_key") apiKey: String,
+        @Query("with_genres") genres: String? = null,
+        @Query("sort_by") sort_by: String = "popularity.desc",
+        @Query("page") page: Int = 1
+    ): Response<TmdbPagedResponse>
+
     @GET("movie/popular")
     suspend fun popularMovies(
+        @Query("api_key") apiKey: String,
+        @Query("page") page: Int = 1
+    ): Response<TmdbPagedResponse>
+
+    // New endpoints for recommendations
+    @GET("movie/now_playing")
+    suspend fun nowPlayingMovies(
+        @Query("api_key") apiKey: String,
+        @Query("page") page: Int = 1
+    ): Response<TmdbPagedResponse>
+
+    @GET("movie/upcoming")
+    suspend fun upcomingMovies(
         @Query("api_key") apiKey: String,
         @Query("page") page: Int = 1
     ): Response<TmdbPagedResponse>
@@ -62,18 +86,23 @@ interface TmdbService {
     }
 }
 
-/** helper: build full poster url */
+/** Helper: build full poster url */
 fun tmdbPosterUrl(path: String?): String? {
     if (path.isNullOrBlank()) return null
-
-    // TMDB image base URL
     val baseUrl = "https://image.tmdb.org/t/p/"
-
-    // Use w500 for good quality thumbnails (you can change to w342, w780, etc.)
     val size = "w500"
-
-    // Remove any leading slash to avoid double slashes in URL
     val cleanPath = if (path.startsWith("/")) path.substring(1) else path
-
     return "$baseUrl$size/$cleanPath"
+}
+
+/** Convert TMDB movie to our app's Movie model */
+fun TmdbMovieItem.toMovie(): Movie {
+    return Movie(
+        id = this.id.toInt(),
+        title = this.title ?: this.name ?: "Unknown Title",
+        posterPath = this.poster_path,
+        releaseDate = this.release_date,
+        voteAverage = this.vote_average,
+        genres = emptyList() // We'll handle genres separately
+    )
 }

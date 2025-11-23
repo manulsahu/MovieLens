@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 
 @Composable
 fun HomeScreen(
@@ -34,76 +36,189 @@ fun HomeScreen(
         Text(
             text = "Welcome back, ${uiState.userName}!",
             fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Here are movies you might like",
-            style = MaterialTheme.typography.bodyMedium
+            text = "Discover your next favorite movie",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Recommendations section
-        Text(
-            text = "Recommended for you",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(uiState.recommendations) { movie ->
-                SimpleMovieCard(movie = movie)
+        // Section 1: New Releases (In Theaters)
+        if (uiState.newReleases.isNotEmpty()) {
+            Text(
+                text = "🎬 New in Theaters",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(uiState.newReleases) { movie ->
+                    SimpleMovieCard(movie = movie, viewModel = viewModel)
+                }
             }
+            Spacer(modifier = Modifier.height(28.dp))
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Watch history section
+        // Section 2: Personalized Recommendations
         Text(
-            text = "You can also watch",
+            text = "🎯 Recommended for You",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(uiState.watchHistory) { movie ->
-                SimpleMovieCard(movie = movie)
+        if (uiState.recommendations.isEmpty()) {
+            Text(
+                text = "Watch more movies to get personalized recommendations",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        } else {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(uiState.recommendations) { movie ->
+                    SimpleMovieCard(movie = movie, viewModel = viewModel)
+                }
             }
+        }
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // Section 3: Upcoming Movies
+        if (uiState.upcomingMovies.isNotEmpty()) {
+            Text(
+                text = "📅 Coming Soon",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(uiState.upcomingMovies) { movie ->
+                    SimpleMovieCard(movie = movie, viewModel = viewModel)
+                }
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+        }
+
+        // Section 4: Watch History
+        if (uiState.watchHistory.isNotEmpty()) {
+            Text(
+                text = "📚 Your Watch History",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(uiState.watchHistory) { movie ->
+                    SimpleMovieCard(movie = movie, viewModel = viewModel)
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        } else {
+            Text(
+                text = "Start watching movies to build your history!",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
         }
     }
 }
 
 @Composable
-fun SimpleMovieCard(movie: Movie) {
+fun SimpleMovieCard(movie: Movie, viewModel: RecommendationViewModel) {
     Card(
-        modifier = Modifier.width(140.dp)
+        modifier = Modifier
+            .width(140.dp)
+            .clickable {
+                viewModel.addToWatchHistory(movie)
+            },
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column {
-            AsyncImage(
-                model = "https://image.tmdb.org/t/p/w500${movie.posterPath}",
-                contentDescription = "${movie.title} poster",
-                modifier = Modifier
-                    .height(180.dp)
-                    .fillMaxWidth()
-            )
+            // Movie poster with proper error handling
+            if (!movie.posterPath.isNullOrBlank()) {
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w500${movie.posterPath}",
+                    contentDescription = "${movie.title} poster",
+                    modifier = Modifier
+                        .height(180.dp)
+                        .fillMaxWidth()
+                )
+            } else {
+                // Placeholder for missing poster
+                Box(
+                    modifier = Modifier
+                        .height(180.dp)
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No Poster",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Movie title
             Text(
                 text = movie.title,
                 modifier = Modifier.padding(horizontal = 8.dp),
-                maxLines = 2
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                lineHeight = 16.sp
             )
+
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "⭐ ${movie.voteAverage ?: "N/A"}",
+
+            // Movie details
+            Row(
                 modifier = Modifier.padding(horizontal = 8.dp),
-                style = MaterialTheme.typography.bodySmall
-            )
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Rating
+                if (movie.voteAverage != null) {
+                    Text(
+                        text = "⭐ ${String.format("%.1f", movie.voteAverage)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Release year (if available)
+                movie.releaseDate?.take(4)?.let { year ->
+                    if (movie.voteAverage != null) {
+                        Text(
+                            text = " • $year",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = year,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
         }
     }

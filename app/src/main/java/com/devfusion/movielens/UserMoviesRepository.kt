@@ -1,62 +1,110 @@
-package com.devfusion.movielens.repository
+package com.devfusion.movielens
 
-import com.devfusion.movielens.Movie
-import com.devfusion.movielens.UserMovie
-import com.devfusion.movielens.data.UserMoviesDao
-import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
-class UserMoviesRepository @Inject constructor(
-    private val userMoviesDao: UserMoviesDao
-) {
+class UserMoviesRepository {
+    private val db = FirebaseFirestore.getInstance()
+    private val collection = db.collection("user_movies")
 
-    fun getToBeWatchedMovies(userId: String): Flow<List<UserMovie>> {
-        return userMoviesDao.getToBeWatchedMovies(userId)
+    suspend fun getWatchedMovies(userId: String): List<UserMovie> {
+        return try {
+            collection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("watched", true)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(UserMovie::class.java) }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
-    fun getWatchedMovies(userId: String): Flow<List<UserMovie>> {
-        return userMoviesDao.getWatchedMovies(userId)
-    }
-
-    suspend fun addToBeWatched(userId: String, movie: Movie) {
-        val userMovie = UserMovie(
-            id = "${userId}_${movie.id}",
-            userId = userId,
-            movieId = movie.id,
-            title = movie.title,
-            posterPath = movie.posterPath,
-            overview = movie.overview,
-            releaseDate = movie.releaseDate,
-            voteAverage = movie.voteAverage,
-            isWatched = false
-        )
-        userMoviesDao.insertMovie(userMovie)
+    suspend fun getWatchlistMovies(userId: String): List<UserMovie> {
+        return try {
+            collection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("watchlist", true)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(UserMovie::class.java) }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     suspend fun addToWatched(userId: String, movie: Movie) {
-        val userMovie = UserMovie(
-            id = "${userId}_${movie.id}",
-            userId = userId,
-            movieId = movie.id,
-            title = movie.title,
-            posterPath = movie.posterPath,
-            overview = movie.overview,
-            releaseDate = movie.releaseDate,
-            voteAverage = movie.voteAverage,
-            isWatched = true
-        )
-        userMoviesDao.insertMovie(userMovie)
+        try {
+            val userMovie = UserMovie(
+                userId = userId,
+                movieId = movie.id,
+                title = movie.title,
+                posterPath = movie.posterPath,
+                releaseDate = movie.releaseDate,
+                voteAverage = movie.voteAverage,
+                genres = movie.genres,
+                watched = true,
+                watchlist = false
+            )
+
+            collection.add(userMovie).await()
+        } catch (e: Exception) {
+            // Handle error
+        }
     }
 
-    suspend fun markAsWatched(userId: String, movie: Movie) {
-        userMoviesDao.updateWatchedStatus(userId, "${userId}_${movie.id}", true)
+    suspend fun addToWatchlist(userId: String, movie: Movie) {
+        try {
+            val userMovie = UserMovie(
+                userId = userId,
+                movieId = movie.id,
+                title = movie.title,
+                posterPath = movie.posterPath,
+                releaseDate = movie.releaseDate,
+                voteAverage = movie.voteAverage,
+                genres = movie.genres,
+                watched = false,
+                watchlist = true
+            )
+
+            collection.add(userMovie).await()
+        } catch (e: Exception) {
+            // Handle error
+        }
     }
 
-    suspend fun removeFromToBeWatched(userId: String, movie: Movie) {
-        userMoviesDao.deleteMovie(userId, "${userId}_${movie.id}")
+    suspend fun removeFromWatchlist(userId: String, movieId: Int) {
+        try {
+            val query = collection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("movieId", movieId)
+                .whereEqualTo("watchlist", true)
+                .get()
+                .await()
+
+            query.documents.forEach { document ->
+                document.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            // Handle error
+        }
     }
 
-    suspend fun removeFromWatched(userId: String, movie: Movie) {
-        userMoviesDao.deleteMovie(userId, "${userId}_${movie.id}")
+    suspend fun markAsWatched(userId: String, movieId: Int) {
+        try {
+            val query = collection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("movieId", movieId)
+                .get()
+                .await()
+
+            query.documents.forEach { document ->
+                document.reference.update("watched", true, "watchlist", false).await()
+            }
+        } catch (e: Exception) {
+            // Handle error
+        }
     }
 }

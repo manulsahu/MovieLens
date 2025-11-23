@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,6 +24,15 @@ fun MyMoviesScreen(
 ) {
     // Dialog visibility state
     var showAddDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Collect state from ViewModel
+    val watchedMovies by viewModel.watchedMovies.collectAsState()
+    val watchlistMovies by viewModel.watchlistMovies.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadUserMovies()
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -40,14 +50,15 @@ fun MyMoviesScreen(
             Text("To Be Watched", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (viewModel.toBeWatched.isEmpty()) {
+            if (watchlistMovies.isEmpty()) {
                 Text("No movies added to your to-be-watched list.")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(viewModel.toBeWatched, key = { it.id }) { movie ->
+                    items(watchlistMovies, key = { it.movieId }) { userMovie ->
+                        val movie = userMovie.toMovie()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -56,7 +67,6 @@ fun MyMoviesScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(movie.title)
-                                // Updated to use releaseDate and voteAverage instead of platform/genre
                                 Text(
                                     "${movie.releaseDate?.take(4) ?: "Unknown"} • ⭐ ${movie.voteAverage ?: "N/A"}",
                                     style = MaterialTheme.typography.bodySmall
@@ -64,12 +74,20 @@ fun MyMoviesScreen(
                             }
 
                             // Mark as watched button
-                            IconButton(onClick = { viewModel.markAsWatched(movie) }) {
+                            IconButton(onClick = {
+                                coroutineScope.launch {
+                                    viewModel.markAsWatched(userMovie)
+                                }
+                            }) {
                                 Icon(Icons.Default.Done, contentDescription = "Mark watched")
                             }
 
                             // Remove from to-be-watched
-                            IconButton(onClick = { viewModel.removeFromToBeWatched(movie) }) {
+                            IconButton(onClick = {
+                                coroutineScope.launch {
+                                    viewModel.removeFromWatchlist(userMovie.movieId)
+                                }
+                            }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove")
                             }
                         }
@@ -84,14 +102,15 @@ fun MyMoviesScreen(
             Text("My Movies (Watched)", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (viewModel.watched.isEmpty()) {
+            if (watchedMovies.isEmpty()) {
                 Text("You haven't marked any movies as watched yet.")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(viewModel.watched, key = { it.id }) { movie ->
+                    items(watchedMovies, key = { it.movieId }) { userMovie ->
+                        val movie = userMovie.toMovie()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -100,15 +119,18 @@ fun MyMoviesScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(movie.title)
-                                // Updated to use releaseDate and voteAverage instead of platform/genre
                                 Text(
                                     "${movie.releaseDate?.take(4) ?: "Unknown"} • ⭐ ${movie.voteAverage ?: "N/A"}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
 
-                            // optional remove button for watched
-                            IconButton(onClick = { viewModel.removeFromWatched(movie) }) {
+                            // Remove button for watched movies
+                            IconButton(onClick = {
+                                coroutineScope.launch {
+                                    viewModel.removeFromWatched(userMovie.movieId)
+                                }
+                            }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove")
                             }
                         }
@@ -156,14 +178,15 @@ fun MyMoviesScreen(
                                 id = System.currentTimeMillis().toInt(), // Use timestamp as ID for manual entries
                                 title = movieTitle,
                                 posterPath = null,
-                                overview = null,
                                 releaseDate = null,
                                 voteAverage = null
                             )
-                            if (addToWatched) {
-                                viewModel.addWatched(movie)
-                            } else {
-                                viewModel.addToBeWatched(movie)
+                            coroutineScope.launch {
+                                if (addToWatched) {
+                                    viewModel.addToWatched(movie)
+                                } else {
+                                    viewModel.addToWatchlist(movie)
+                                }
                             }
                             showAddDialog = false
                         }
