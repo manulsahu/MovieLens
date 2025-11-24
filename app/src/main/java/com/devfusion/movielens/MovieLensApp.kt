@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 private const val TAG = "ML-DEBUG"
@@ -43,6 +44,11 @@ sealed class BottomTab(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MovieLensApp() {
+    val context = LocalContext.current
+    val authManager = remember {
+        (context.applicationContext as MovieLensApplication).authManager
+    }
+
     var selectedTabIndex by rememberSaveable { mutableStateOf(0) }
 
     // compute directly (no remember) or use derivedStateOf if heavy
@@ -76,7 +82,7 @@ fun MovieLensApp() {
             is BottomTab.Home -> HomeScreen(modifier = modifier)
             is BottomTab.Trending -> TrendingScreen(modifier = modifier)
             is BottomTab.MyMovies -> MyMoviesScreen(modifier = modifier)
-            is BottomTab.Profile -> ProfileScreen(modifier = modifier)
+            is BottomTab.Profile -> ProfileScreen(modifier = modifier, authManager = authManager)
         }
 
         // Option B (if you prefer an explicit key): use the numeric index as the key

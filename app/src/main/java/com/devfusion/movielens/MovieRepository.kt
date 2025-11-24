@@ -2,8 +2,11 @@ package com.devfusion.movielens
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class MovieRepository {
+@Singleton
+class MovieRepository @Inject constructor(){
 
     private val tmdbService = TmdbService.create()
 
