@@ -3,11 +3,7 @@ package com.devfusion.movielens
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -22,13 +18,15 @@ class SignInActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
+    private lateinit var authManager: AuthManager
 
     private lateinit var emailEditText: EditText
     private lateinit var passwordEditText: EditText
     private lateinit var signInButton: Button
-    private lateinit var googleSignInButton: LinearLayout // CHANGED from ConstraintLayout
+    private lateinit var googleSignInButton: LinearLayout
     private lateinit var goToSignUpText: TextView
     private lateinit var forgotPasswordText: TextView
+    private lateinit var rememberMeCheckbox: CheckBox
 
     private val RC_SIGN_IN = 9002
 
@@ -45,6 +43,14 @@ class SignInActivity : AppCompatActivity() {
         Log.i(TAG, "SignInActivity setContentView OK")
 
         auth = FirebaseAuth.getInstance()
+        authManager = (application as MovieLensApplication).authManager
+
+        // Check if user should be automatically logged in
+        if (authManager.shouldRememberMe() && authManager.isLoggedIn.value) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
 
         // Initialize views
         emailEditText = findViewById(R.id.emailEditText)
@@ -53,6 +59,7 @@ class SignInActivity : AppCompatActivity() {
         googleSignInButton = findViewById(R.id.googleSignInButton)
         goToSignUpText = findViewById(R.id.goToSignUp)
         forgotPasswordText = findViewById(R.id.forgotPassword)
+        rememberMeCheckbox = findViewById(R.id.rememberMeCheckbox) // ADD THIS TO YOUR LAYOUT
 
         // Configure Google Sign In
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -101,8 +108,9 @@ class SignInActivity : AppCompatActivity() {
     private fun signInWithEmail() {
         val email = emailEditText.text.toString().trim()
         val password = passwordEditText.text.toString().trim()
+        val rememberMe = rememberMeCheckbox.isChecked
 
-        Log.i(TAG, "Attempt signInWithEmail: email='${if (email.isNotEmpty()) email else "<empty>"}'")
+        Log.i(TAG, "Attempt signInWithEmail: email='${if (email.isNotEmpty()) email else "<empty>"}', rememberMe=$rememberMe")
 
         if (email.isEmpty() || password.isEmpty()) {
             Toast.makeText(this, "Email and password cannot be empty", Toast.LENGTH_SHORT).show()
@@ -114,7 +122,13 @@ class SignInActivity : AppCompatActivity() {
                 .addOnCompleteListener(this) { task ->
                     Log.i(TAG, "signInWithEmail addOnComplete: success=${task.isSuccessful}")
                     if (task.isSuccessful) {
-                        Log.i(TAG, "Firebase sign-in successful, launching MainActivity")
+                        val user = auth.currentUser
+                        if (user != null) {
+                            // Save login state with AuthManager
+                            authManager.login(user.uid, rememberMe)
+                            Log.i(TAG, "Firebase sign-in successful, user ID: ${user.uid}")
+                        }
+
                         startActivity(Intent(this, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         })
@@ -160,6 +174,12 @@ class SignInActivity : AppCompatActivity() {
         auth.signInWithCredential(credential)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
+                    val user = auth.currentUser
+                    if (user != null) {
+                        // For Google sign-in, we'll always remember the user
+                        authManager.login(user.uid, true)
+                    }
+
                     Toast.makeText(this, "Google sign-in successful!", Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

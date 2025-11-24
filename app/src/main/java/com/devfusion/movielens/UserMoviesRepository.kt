@@ -92,6 +92,23 @@ class UserMoviesRepository {
         }
     }
 
+    suspend fun removeFromWatched(userId: String, movieId: Int) {
+        try {
+            val query = collection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("movieId", movieId)
+                .whereEqualTo("watched", true)
+                .get()
+                .await()
+
+            query.documents.forEach { document ->
+                document.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            // Handle error
+        }
+    }
+
     suspend fun markAsWatched(userId: String, movieId: Int) {
         try {
             val query = collection

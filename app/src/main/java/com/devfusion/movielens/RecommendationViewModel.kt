@@ -8,19 +8,15 @@ import kotlinx.coroutines.launch
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-import dagger.hilt.android.lifecycle.HiltViewModel
 
-@HiltViewModel
-class RecommendationViewModel @Inject constructor(
-    private val auth: FirebaseAuth,
-    private val db: FirebaseFirestore
-) : ViewModel() {
+class RecommendationViewModel : ViewModel() {
+
+    private val auth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
+    private val movieRepository = MovieRepository()
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState
-
-    private val movieRepository = MovieRepository()
 
     init {
         loadRecommendations()

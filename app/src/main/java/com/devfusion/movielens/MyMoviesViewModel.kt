@@ -18,43 +18,95 @@ class MyMoviesViewModel : ViewModel() {
     private val _watchlistMovies = MutableStateFlow<List<UserMovie>>(emptyList())
     val watchlistMovies: StateFlow<List<UserMovie>> = _watchlistMovies
 
+    private val _movieStats = MutableStateFlow(MovieStats(0, 0, 0))
+    val movieStats: StateFlow<MovieStats> = _movieStats
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    data class MovieStats(
+        val toWatchCount: Int,
+        val watchedCount: Int,
+        val totalCount: Int
+    )
+
     fun loadUserMovies() {
         viewModelScope.launch {
             val userId = auth.currentUser?.uid ?: return@launch
-            _watchedMovies.value = userMoviesRepository.getWatchedMovies(userId)
-            _watchlistMovies.value = userMoviesRepository.getWatchlistMovies(userId)
+            _isLoading.value = true
+            try {
+                val watched = userMoviesRepository.getWatchedMovies(userId)
+                val watchlist = userMoviesRepository.getWatchlistMovies(userId)
+
+                _watchedMovies.value = watched
+                _watchlistMovies.value = watchlist
+
+                _movieStats.value = MovieStats(
+                    toWatchCount = watchlist.size,
+                    watchedCount = watched.size,
+                    totalCount = watchlist.size + watched.size
+                )
+            } catch (e: Exception) {
+                // Handle error appropriately
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
     suspend fun addToWatched(movie: Movie) {
         val userId = auth.currentUser?.uid ?: return
-        userMoviesRepository.addToWatched(userId, movie)
-        loadUserMovies() // Refresh the list
+        try {
+            userMoviesRepository.addToWatched(userId, movie)
+            loadUserMovies()
+        } catch (e: Exception) {
+            // Handle error
+            e.printStackTrace()
+        }
     }
 
     suspend fun addToWatchlist(movie: Movie) {
         val userId = auth.currentUser?.uid ?: return
-        userMoviesRepository.addToWatchlist(userId, movie)
-        loadUserMovies() // Refresh the list
+        try {
+            userMoviesRepository.addToWatchlist(userId, movie)
+            loadUserMovies()
+        } catch (e: Exception) {
+            // Handle error
+            e.printStackTrace()
+        }
     }
 
     suspend fun markAsWatched(userMovie: UserMovie) {
         val userId = auth.currentUser?.uid ?: return
-        userMoviesRepository.markAsWatched(userId, userMovie.movieId)
-        loadUserMovies() // Refresh the list
+        try {
+            userMoviesRepository.markAsWatched(userId, userMovie.movieId)
+            loadUserMovies()
+        } catch (e: Exception) {
+            // Handle error
+            e.printStackTrace()
+        }
     }
 
     suspend fun removeFromWatchlist(movieId: Int) {
         val userId = auth.currentUser?.uid ?: return
-        userMoviesRepository.removeFromWatchlist(userId, movieId)
-        loadUserMovies() // Refresh the list
+        try {
+            userMoviesRepository.removeFromWatchlist(userId, movieId)
+            loadUserMovies()
+        } catch (e: Exception) {
+            // Handle error
+            e.printStackTrace()
+        }
     }
 
     suspend fun removeFromWatched(movieId: Int) {
         val userId = auth.currentUser?.uid ?: return
-        // For watched movies, we can delete them entirely or move to watchlist
-        // Currently deleting them
-        userMoviesRepository.removeFromWatchlist(userId, movieId) // Same method works for both
-        loadUserMovies() // Refresh the list
+        try {
+            userMoviesRepository.removeFromWatched(userId, movieId)
+            loadUserMovies()
+        } catch (e: Exception) {
+            // Handle error
+            e.printStackTrace()
+        }
     }
 }
