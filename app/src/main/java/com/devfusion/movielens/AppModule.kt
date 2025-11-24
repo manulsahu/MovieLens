@@ -2,6 +2,8 @@ package com.devfusion.movielens.di
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.devfusion.movielens.AuthManager
+import com.devfusion.movielens.MovieRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
@@ -37,5 +39,18 @@ object AppModule {
     @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore {
         return FirebaseFirestore.getInstance()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAuthManager(@ApplicationContext context: Context): AuthManager {
+        return AuthManager(context)
+    }
+
+    // ADD THIS: Provide MovieRepository
+    @Provides
+    @Singleton
+    fun provideMovieRepository(): MovieRepository {
+        return MovieRepository()
     }
 }

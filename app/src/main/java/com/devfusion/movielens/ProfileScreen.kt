@@ -16,16 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.UserProfileChangeRequest
 
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
-    viewModel: ProfileViewModel = hiltViewModel()
+    authManager: AuthManager,
 ) {
     val context = LocalContext.current
     val user = FirebaseAuth.getInstance().currentUser
@@ -33,6 +32,14 @@ fun ProfileScreen(
     var displayName by remember { mutableStateOf(user?.displayName ?: "") }
     var isLoading by remember { mutableStateOf(false) }
     val photoUrl: Uri? = user?.photoUrl
+
+    val profileViewModel: ProfileViewModel = viewModel()
+    val myMoviesViewModel: MyMoviesViewModel = viewModel()
+
+    // Load user movies when screen appears
+    LaunchedEffect(Unit) {
+        myMoviesViewModel.loadUserMovies()
+    }
 
     // Observe the user's display name from ViewModel
     LaunchedEffect(user?.uid) {
@@ -47,7 +54,7 @@ fun ProfileScreen(
             isLoading = isLoading,
             onSave = { newName ->
                 isLoading = true
-                viewModel.updateDisplayName(newName) { success ->
+                profileViewModel.updateDisplayName(newName) { success ->
                     isLoading = false
                     if (success) {
                         displayName = newName
@@ -161,33 +168,21 @@ fun ProfileScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                // You can add actual stats here later from ViewModel
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("To Watch", style = MaterialTheme.typography.bodyMedium)
-                        Text("0", style = MaterialTheme.typography.titleMedium) // Replace with actual count
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Watched", style = MaterialTheme.typography.bodyMedium)
-                        Text("0", style = MaterialTheme.typography.titleMedium) // Replace with actual count
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Total", style = MaterialTheme.typography.bodyMedium)
-                        Text("0", style = MaterialTheme.typography.titleMedium) // Replace with actual count
-                    }
-                }
+                // Replace the hardcoded stats with MovieStatsRow
+                MovieStatsRow(viewModel = myMoviesViewModel)
             }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Logout Button
+        // Logout Button - UPDATED TO USE AUTH MANAGER
         Button(
             onClick = {
-                viewModel.logout()
+                // Use AuthManager for logout
+                profileViewModel.logout(authManager)
+                // Also sign out from Firebase
+                FirebaseAuth.getInstance().signOut()
+
                 val intent = Intent(context, SignInActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 }
@@ -206,6 +201,37 @@ fun ProfileScreen(
     }
 }
 
+// MovieStatsRow composable
+@Composable
+fun MovieStatsRow(viewModel: MyMoviesViewModel) {
+    // Use collectAsStateWithLifecycle for better lifecycle management
+    val watchedMovies by viewModel.watchedMovies.collectAsStateWithLifecycle()
+    val watchlistMovies by viewModel.watchlistMovies.collectAsStateWithLifecycle()
+
+    val toWatchCount = watchlistMovies.size
+    val watchedCount = watchedMovies.size
+    val totalCount = toWatchCount + watchedCount
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("To Watch", style = MaterialTheme.typography.bodyMedium)
+            Text("$toWatchCount", style = MaterialTheme.typography.titleMedium)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Watched", style = MaterialTheme.typography.bodyMedium)
+            Text("$watchedCount", style = MaterialTheme.typography.titleMedium)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Total", style = MaterialTheme.typography.bodyMedium)
+            Text("$totalCount", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+// EditNameDialog composable
 @Composable
 fun EditNameDialog(
     initial: String,
